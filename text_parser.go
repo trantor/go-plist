@@ -260,7 +260,28 @@ func (p *textPlistParser) parseEscape() string {
 	case 'x':
 		s = string(rune(p.parseHexDigits(2)))
 	case 'u', 'U':
-		s = string(rune(p.parseHexDigits(4)))
+		int_char := rune(p.parseHexDigits(4))
+		out := int_char
+	// Checking if it's in the High Surrogate range U+D800 to U+DBFF
+		if int_char >= 55296 && int_char <=  56319 {
+			if p.peek() == '\\' {
+				p.next()
+				next_char := p.peek()
+				if next_char == 'U' || next_char == 'u' {
+					p.next()
+					low_surr := rune(p.parseHexDigits(4))
+	// Checking if it's in the Low Surrogate range U+DC00 to U+DFFF
+					if low_surr >= 56320 && int_char <=  57343 {
+						out = utf16.DecodeRune(int_char,low_surr)
+					} else {
+						p.pos -= ( p.width * 6 )
+					}
+				} else {
+					p.backup()
+				}
+			}
+		}
+		s = string(out)
 	case '0', '1', '2', '3', '4', '5', '6', '7':
 		p.backup() // we've already consumed one of the digits
 		s = string(rune(p.parseOctalDigits(3)))
